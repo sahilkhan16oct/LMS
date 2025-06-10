@@ -5,6 +5,7 @@ const Candidate = require("../models/Candidate");
 const xlsx = require("xlsx");
 const os = require("os");
 const mongoose = require("mongoose");
+const Training = require("../models/Training");
 
 
 
@@ -236,6 +237,12 @@ exports.assignTrainingToBatch = async (req, res) => {
       return res.status(400).json({ message: "Training ID and Batch ID required." });
     }
 
+    // ✅ 1. Fetch training details including chapters
+    const training = await Training.findById(trainingId).select("chapters").lean();
+    if (!training) {
+      return res.status(404).json({ message: "Training not found." });
+    }
+
     const candidates = await Candidate.find({
       batches: {
         $elemMatch: { batch: new mongoose.Types.ObjectId(batchId) }
@@ -254,6 +261,23 @@ exports.assignTrainingToBatch = async (req, res) => {
       );
 
       if (!alreadyHasTraining) {
+        // ✅ 2. Deep copy of chapters
+        console.log("Mapped chapters:", training.chapters.map(ch => ch._id));
+
+        const personalizedChapters = training.chapters.map(ch => ({
+          
+          chapterId: ch._id?.toString(),
+          name: ch.name,
+          description: ch.description,
+          duration: ch.duration,
+          pdf: ch.pdf,
+          linkedTestId: ch.linkedTestId || null,
+          unlocksChapters: ch.unlocksChapters || [],
+          dependentChapters: ch.dependentChapters || [],
+          indexes: ch.indexes || []
+        }));
+
+        // ✅ 3. Push new training object with chapters into assignedTrainings
         bulkOps.push({
           updateOne: {
             filter: { _id: cand._id },
@@ -263,7 +287,8 @@ exports.assignTrainingToBatch = async (req, res) => {
                   trainingId: new mongoose.Types.ObjectId(trainingId),
                   assignedAt: new Date(),
                   status: "not_started",
-                  batchId: new mongoose.Types.ObjectId(batchId)
+                  batchId: new mongoose.Types.ObjectId(batchId),
+                  chapters: personalizedChapters
                 }
               }
             }
@@ -285,6 +310,7 @@ exports.assignTrainingToBatch = async (req, res) => {
     res.status(500).json({ message: "Server error." });
   }
 };
+
 
 
 

@@ -84,17 +84,43 @@ exports.uploadCandidatesExcel = async (req, res) => {
 
       if (!existing) {
         // 🆕 Create new candidate
-        const newCandidate = new Candidate({
-          ...clean,
-          candidateId: cid,
-          batches: [
-            {
-              batch: batchId,
-              fileId: fileObjectId,
-              rawData: { ...row, sourceFile: file.originalname },
-            },
-          ],
-        });
+      // ✅ Fetch assigned training and chapters (to embed into new candidate)
+const assignedTraining = await Training.findOne().lean(); // or fetch based on logic if needed
+const trainingChapters = assignedTraining?.chapters || [];
+
+const personalizedChapters = trainingChapters.map(ch => ({
+  chapterId: ch._id.toString(),
+  name: ch.name,
+  description: ch.description,
+  duration: ch.duration,
+  pdf: ch.pdf,
+  linkedTestId: ch.linkedTestId || null,
+  unlocksChapters: ch.unlocksChapters || [],
+  dependentChapters: ch.dependentChapters || [],
+  indexes: ch.indexes || []
+}));
+
+const newCandidate = new Candidate({
+  ...clean,
+  candidateId: cid,
+  batches: [
+    {
+      batch: batchId,
+      fileId: fileObjectId,
+      rawData: { ...row, sourceFile: file.originalname },
+    },
+  ],
+  assignedTrainings: [
+    {
+      trainingId: assignedTraining._id,
+      batchId: batchId,
+      assignedAt: new Date(),
+      status: "not_started",
+      chapters: personalizedChapters
+    }
+  ]
+});
+
         newCandidates.push(newCandidate);
       } else {
         // 🧠 Candidate exists — check if already in this batch
@@ -281,6 +307,7 @@ exports.loginCandidate = async (req, res) => {
     const token = jwt.sign(
       {
         id: candidate._id,
+        sub: candidate._id.toString(),
         candidateId: candidate.candidateId,
         role: "candidate"
       },
@@ -320,12 +347,37 @@ exports.getAssignedTrainings = async (req, res) => {
 //candidate profile controller:-->
 exports.getCandidateProfile = async (req, res) => {
   try {
-    const candidateId = req.user?.id; // `req.user` is populated by verifyToken
-    if (!candidateId) return res.status(401).json({ message: "Unauthorized" });
+    const candidateId = req.user?.id;
+    if (!candidateId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    const candidate = await Candidate.findById(candidateId).select("name candidateId email testResults"); // Adjust fields as needed
+    const candidate = await Candidate.findById(candidateId)
+      .populate("assignedTrainings.trainingId")
+      .select("-password -__v")
+      .lean();
 
-    if (!candidate) return res.status(404).json({ message: "Candidate not found" });
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found" });
+    }
+
+    // ✅ Inject chapterId properly inside assignedTrainings[].chapters[]
+    candidate.assignedTrainings = candidate.assignedTrainings.map((training) => {
+      const updatedChapters = training.chapters.map((ch) => ({
+        ...ch,
+        chapterId: ch.chapterId?.toString() || null,
+      }));
+
+      // ✅ Inject updated chapters inside trainingId.chapters for frontend use
+      return {
+        ...training,
+        chapters: updatedChapters,
+        trainingId: {
+          ...training.trainingId,
+          chapters: updatedChapters, // ✅ overwrite chapters here
+        },
+      };
+    });
 
     res.status(200).json(candidate);
   } catch (err) {
@@ -336,6 +388,30 @@ exports.getCandidateProfile = async (req, res) => {
 
 
 
+
+
+//find chapter name by its object id in DB
+exports.getChapterNameById = async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+
+    const training = await Training.findOne({ "chapters._id": chapterId }).lean();
+
+    if (!training) {
+      return res.status(404).json({ message: "Training or chapter not found" });
+    }
+
+    const chapter = training.chapters.find(ch => ch._id.toString() === chapterId);
+    if (!chapter) {
+      return res.status(404).json({ message: "Chapter not found" });
+    }
+
+    res.status(200).json({ name: chapter.name });
+  } catch (err) {
+    console.error("Error fetching chapter name:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 
 

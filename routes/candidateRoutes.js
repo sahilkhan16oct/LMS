@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const candidateController = require("../controllers/candidateController");
 const verifyToken = require("../middleware/auth");
-const CandidateTestController = require("../controllers/CandidateTestController");
+
 
 
 //acndidate login route
@@ -16,11 +16,9 @@ router.get("/assigned-trainings", verifyToken, candidateController.getAssignedTr
 router.get("/profile", verifyToken, candidateController.getCandidateProfile);
 
 
-// ✅ Randomized test for candidate
-router.get("/:testId", verifyToken, CandidateTestController.getRandomizedTest);
 
-
-
+//chapter name fetching route
+router.get("/chapter-name/:chapterId", verifyToken, candidateController.getChapterNameById);
 
 
 module.exports = router;

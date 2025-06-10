@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 
 const verifyToken = (req, res, next) => {
-  
   let token = req.header('Authorization');
 
   if (!token) {
@@ -9,21 +8,24 @@ const verifyToken = (req, res, next) => {
   }
 
   if (token.startsWith('Bearer ')) {
-    token = token.slice(7, token.length);
+    token = token.slice(7);
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 🔁 Smart Role Assignment
+    // ✅ Smart Role Assignment
     if (decoded.role === 'admin') {
       req.admin = decoded;
     } else if (decoded.role === 'candidate') {
       req.candidate = decoded;
     }
 
-    req.user = { _id: decoded.id, ...decoded };
- // ✅ optional: generic access to id + role
+    req.user = {
+      _id: decoded.sub || decoded.id,   // 👈 Flask uses `sub`, keep fallback for `id`
+      ...decoded
+    };
+
     next();
   } catch (error) {
     console.error('JWT VERIFY ERROR:', error);

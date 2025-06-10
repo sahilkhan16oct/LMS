@@ -40,6 +40,11 @@ exports.getRandomizedTest = async (req, res) => {
       }
     }
 
+    // ✅ Return early if already passed
+if (alreadyPassed) {
+  return res.status(403).json({ message: "You have already passed this test" });
+}
+
     // ✅ Construct clean response object
     const responsePayload = {
       title: test.title,
@@ -76,18 +81,22 @@ exports.submitTest = async (req, res) => {
     let correctCount = 0;
 
     for (let submitted of answers) {
-      const selectedOptionLetter = submitted.selectedOption?.trim().toUpperCase(); // 'A', 'B', 'C', 'D'
-      const optionIndexMap = { A: 0, B: 1, C: 2, D: 3 };
+  const actualSelectedText = submitted.selectedOption?.trim();
+  const correct = submitted.correctAnswer?.trim();
 
-      // get actual selected text
-      const actualSelectedText = submitted.options?.[optionIndexMap[selectedOptionLetter]];
+  console.log("🔍 Comparing:", {
+    selected: actualSelectedText,
+    correct,
+    match: actualSelectedText?.toLowerCase() === correct?.toLowerCase()
+  });
 
-      if (
-        actualSelectedText?.trim().toLowerCase() === submitted.correctAnswer?.trim().toLowerCase()
-      ) {
-        correctCount++;
-      }
-    }
+  if (
+    actualSelectedText?.toLowerCase() === correct?.toLowerCase()
+  ) {
+    correctCount++;
+  }
+}
+
 
     const percentage = (correctCount / answers.length) * 100;
     const status = percentage >= passingPercentage ? "pass" : "fail";
@@ -123,11 +132,45 @@ exports.submitTest = async (req, res) => {
       });
     }
 
+     if (status === "pass") {
+      for (const training of candidate.assignedTrainings) {
+        const targetChapter = training.chapters.find(ch => ch.linkedTestId?.toString() === testId);
+
+        if (targetChapter) {
+          const chapterId = targetChapter.chapterId.toString();
+          const unlockedChapterIds = targetChapter.unlocksChapters.map(id => id.toString());
+
+          for (const unlockId of unlockedChapterIds) {
+            const unlocked = training.chapters.find(ch => ch.chapterId?.toString() === unlockId);
+            if (unlocked) {
+              unlocked.dependentChapters = unlocked.dependentChapters.filter(depId => depId.toString() !== chapterId);
+            }
+          }
+
+          targetChapter.unlocksChapters = [];
+        }
+      }
+
+      candidate.markModified("assignedTrainings");
+    }
+    // ✅ UNLOCK LOGIC PATCH ENDS HERE
+
+    candidate.markModified("testResults");
+
+
+
+    console.log("✅ Candidate ID:", candidate._id.toString());
+    console.log("Saving test result:", candidate.testResults);
+    candidate.markModified("testResults");
+    const verify = await Candidate.findById(candidateId);
+console.log("✅ Saved testResults:", verify.testResults);
+
     await candidate.save();
 
     res.status(200).json({
       message: 'Test submitted',
       result: { scorePercentage: percentage, status },
+       testResults: candidate.testResults,
     });
   } catch (err) {
     console.error('❌ submitTest error:', err);
@@ -135,60 +178,4 @@ exports.submitTest = async (req, res) => {
   }
 };
 
-// exports.submitTest = async (req, res) => {
-//   try {
-//     const candidateId = req.user._id;
-    
-//     const { testId } = req.params;
-//     const { answers, passingPercentage } = req.body;  // ✅ frontend se aaraha
 
-
-//     let correctCount = 0;
-
-//    for (let submitted of answers) {
-//   const selectedOptionLetter = submitted.selectedOption?.trim().toUpperCase(); // 'A', 'B', 'C', 'D'
-//   const optionIndexMap = { A: 0, B: 1, C: 2, D: 3 };
-
-//   // get actual selected text
-//   const actualSelectedText = submitted.options?.[optionIndexMap[selectedOptionLetter]];
-
-//   if (
-//     actualSelectedText?.trim().toLowerCase() === submitted.correctAnswer?.trim().toLowerCase()
-//   ) {
-//     correctCount++;
-//   }
-// }
-
-
-//     const percentage = (correctCount / answers.length) * 100;
-//     const status = percentage >= passingPercentage ? "pass" : "fail";
-
-//  const updated = await Candidate.findByIdAndUpdate(
-//       candidateId,
-//       {
-//         $push: {
-//           testResults: {
-//             testId: new mongoose.Types.ObjectId(testId),
-//             scorePercentage: percentage,
-//             status,
-//             attemptedAt: new Date(),
-//           },
-//         },
-//       },
-//       { new: true }
-//     );
-
-//     if (!updated) {
-//       console.error("❌ Candidate not found or update failed.");
-//       return res.status(404).json({ message: "Candidate not found or update failed" });
-//     }
-
-//     res.status(200).json({
-//       message: 'Test submitted',
-//       result: { scorePercentage: percentage, status },
-//     });
-//   } catch (err) {
-//     console.error('❌ submitTest error:', err);
-//     res.status(500).json({ message: 'Failed to submit test' });
-//   }
-// };

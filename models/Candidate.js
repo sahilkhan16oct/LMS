@@ -37,9 +37,27 @@ const candidateSchema = new mongoose.Schema({
      batchId: { // ✅ ADD THIS LINE
       type: mongoose.Schema.Types.ObjectId,
       ref: "Batch"
-    }
+    },
+      chapters: [ 
+      {  _id: false,
+    chapterId: { // ✅ Add this field
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+        
+        name: String,
+        description: String,
+        duration: Number,
+        pdf: String,
+        linkedTestId: { type: mongoose.Schema.Types.ObjectId, ref: 'Test', default: null },
+        unlocksChapters: [{ type: mongoose.Schema.Types.ObjectId }],
+        dependentChapters: [{ type: mongoose.Schema.Types.ObjectId }],
+        indexes: [Object],  // You can deep-define if needed
+      }
+    ]
   }
 ],
+
 testResults: [
   {
     testId: { type: mongoose.Schema.Types.ObjectId, ref: 'Test' },
