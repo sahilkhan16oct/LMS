@@ -22,6 +22,9 @@ const trainingSchema = new mongoose.Schema({
         ref: 'Test',
         default: null
       },
+       certificate: {
+      filePath: { type: String, default: null }
+    },
 
       unlocksChapters: [
         { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter' }
@@ -70,7 +73,8 @@ const trainingSchema = new mongoose.Schema({
       ]
       
     }
-  ]
+  ],
+  
 });
 
 module.exports = mongoose.model('Training', trainingSchema);

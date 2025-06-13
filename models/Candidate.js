@@ -50,6 +50,7 @@ const candidateSchema = new mongoose.Schema({
         duration: Number,
         pdf: String,
         linkedTestId: { type: mongoose.Schema.Types.ObjectId, ref: 'Test', default: null },
+        certificate: {filePath: { type: String }},
         unlocksChapters: [{ type: mongoose.Schema.Types.ObjectId }],
         dependentChapters: [{ type: mongoose.Schema.Types.ObjectId }],
         indexes: [Object],  // You can deep-define if needed
@@ -66,7 +67,11 @@ testResults: [
     attemptedAt: { type: Date, default: Date.now },
     attemptCount: { type: Number, default: 1 }
   }
-]
+],
+ queryCount: {
+    type: Number,
+    default: 0
+  }
 
 
 });

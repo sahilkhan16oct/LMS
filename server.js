@@ -51,6 +51,14 @@ app.use("/api/candidate", candidateRoutes);
 const candidateTestRoutes = require("./routes/candidateTestRoutes");
 app.use("/api/candidate", candidateTestRoutes);
 
+//certificate routes
+const certificateRoutes = require('./routes/certificateRoutes');
+app.use('/api/candidate', certificateRoutes);
+
+//QueryRoutes
+const candidateQueryRoutes = require('./routes/candidateQueryRoutes');
+app.use('/api/candidate', candidateQueryRoutes);
+
 
 const PORT = 5000;
 

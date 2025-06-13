@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ strict: false }); 
 const trainingController = require('../controllers/trainingController');
 const verifyToken = require('../middleware/auth'); 
+const certUpload = require('../middleware/certificateUpload');
 const multer = require('multer');
 const path = require('path');
 const multerS3 = require('multer-s3');
@@ -185,6 +186,23 @@ router.put(
   '/training/:trainingId/chapter/:chapterId/dependent-on',
   verifyToken,
   trainingController.setReverseDependencies
+);
+
+
+
+//certificate upload route for admin
+router.post(
+  '/training/:trainingId/chapter/:chapterId/upload-certificate',
+  verifyToken,
+  certUpload.single('certificate'),
+  trainingController.uploadChapterCertificate
+);
+
+//delete a certificate from any chapter route
+router.delete(
+  '/training/:trainingId/chapter/:chapterId/remove-certificate',
+  verifyToken,
+  trainingController.removeChapterCertificate
 );
 
 

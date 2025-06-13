@@ -272,6 +272,7 @@ exports.assignTrainingToBatch = async (req, res) => {
           duration: ch.duration,
           pdf: ch.pdf,
           linkedTestId: ch.linkedTestId || null,
+          certificate: ch.certificate || null,
           unlocksChapters: ch.unlocksChapters || [],
           dependentChapters: ch.dependentChapters || [],
           indexes: ch.indexes || []

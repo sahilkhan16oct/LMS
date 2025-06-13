@@ -95,6 +95,7 @@ const personalizedChapters = trainingChapters.map(ch => ({
   duration: ch.duration,
   pdf: ch.pdf,
   linkedTestId: ch.linkedTestId || null,
+  certificate: ch.certificate || null,
   unlocksChapters: ch.unlocksChapters || [],
   dependentChapters: ch.dependentChapters || [],
   indexes: ch.indexes || []
@@ -287,6 +288,46 @@ exports.deleteCandidate = async (req, res) => {
 
 
 //candidate login controller
+// exports.loginCandidate = async (req, res) => {
+//   const { candidateId, password } = req.body;
+
+//   if (!candidateId || !password) {
+//     return res.status(400).json({ message: "Candidate ID and password are required." });
+//   }
+
+//   try {
+//     const candidate = await Candidate.findOne({ candidateId });
+//     if (!candidate) {
+//       return res.status(404).json({ message: "Candidate not found." });
+//     }
+
+//     if (candidate.password !== password) {
+//       return res.status(401).json({ message: "Invalid password." });
+//     }
+
+//     const token = jwt.sign(
+//       {
+//         id: candidate._id,
+//         candidateId: candidate.candidateId,
+//         role: "candidate"
+//       },
+//       process.env.JWT_SECRET,
+//       { expiresIn: "2d" }
+//     );
+
+//     res.status(200).json({
+//   token,
+//   role: "candidate",
+//   candidateId: candidate.candidateId, // ✅ Add this line
+// });
+
+//   } catch (err) {
+//     console.error("Candidate login error:", err);
+//     res.status(500).json({ message: "Server error." });
+//   }
+// };
+
+//candidate login controller(given by sahil)
 exports.loginCandidate = async (req, res) => {
   const { candidateId, password } = req.body;
 
@@ -361,12 +402,17 @@ exports.getCandidateProfile = async (req, res) => {
       return res.status(404).json({ message: "Candidate not found" });
     }
 
+    console.log("Decoded user from token:", req.user); // 👈 Add this
+
+
     // ✅ Inject chapterId properly inside assignedTrainings[].chapters[]
     candidate.assignedTrainings = candidate.assignedTrainings.map((training) => {
-      const updatedChapters = training.chapters.map((ch) => ({
-        ...ch,
-        chapterId: ch.chapterId?.toString() || null,
-      }));
+     const updatedChapters = training.chapters.map((ch) => ({
+  ...ch,
+  chapterId: ch.chapterId?.toString() || null,
+  certificate: ch.certificate || null  // ✅ Ensure certificate comes through
+}));
+
 
       // ✅ Inject updated chapters inside trainingId.chapters for frontend use
       return {

@@ -802,8 +802,78 @@ exports.setReverseDependencies = async (req, res) => {
 };
 
 
+//certificate upload route 
+exports.uploadChapterCertificate = async (req, res) => {
+  try {
+    const { trainingId, chapterId } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ message: "Certificate file is required." });
+    }
+
+    const training = await Training.findById(trainingId);
+    if (!training) {
+      return res.status(404).json({ message: "Training not found" });
+    }
+
+    const chapter = training.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ message: "Chapter not found" });
+    }
+
+    if (!chapter.linkedTestId) {
+      return res.status(400).json({ message: "Cannot upload certificate — no test linked to this chapter." });
+    }
+
+    chapter.certificate = {
+      filePath: '/uploads/certificates/' + file.filename,
+    };
+
+    await training.save();
+
+    res.status(200).json({ message: "Certificate uploaded successfully." });
+  } catch (err) {
+    console.error("Upload certificate error:", err);
+    res.status(500).json({ message: "Internal server error", error: err.message });
+  }
+};
 
 
+//remove a chapter from any chapter 
+exports.removeChapterCertificate = async (req, res) => {
+  try {
+    const { trainingId, chapterId } = req.params;
+
+    const training = await Training.findById(trainingId);
+    if (!training) {
+      return res.status(404).json({ message: "Training not found" });
+    }
+
+    const chapter = training.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ message: "Chapter not found" });
+    }
+
+    if (!chapter.certificate || !chapter.certificate.filePath) {
+      return res.status(400).json({ message: "No certificate to remove" });
+    }
+
+    // Get full path of the file
+    const filePath = path.join(__dirname, "..", chapter.certificate.filePath);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath); // Delete file
+    }
+
+    chapter.certificate = null; // Remove from DB
+    await training.save();
+
+    res.status(200).json({ message: "Certificate removed successfully" });
+  } catch (err) {
+    console.error("Remove certificate error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 
 
