@@ -1,6 +1,7 @@
 const Admin = require('../models/Admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const SessionLog = require('../models/SessionLog'); 
 
 
 // Admin Register
@@ -62,3 +63,28 @@ exports.loginAdmin = async (req, res) => {
       res.status(500).json({ message: 'Error logging in admin', error: error.message });
     }
   };
+
+
+  //log controller for admin 
+  exports.getRecentSessionLogs = async (req, res) => {
+  try {
+    const logs = await SessionLog.find({})
+      .sort({ loginTime: -1 })
+      .limit(50)
+      .select('sessionId email phone loginTime logoutTime candidate')
+      .populate('candidate', 'candidateId'); // to get canId
+
+    const formattedLogs = logs.map(log => ({
+      sessionId: log.sessionId,
+      email: log.email,
+      phone: log.phone,
+      loginTime: log.loginTime,
+      logoutTime: log.logoutTime,
+      canId: log.candidate?.candidateId || 'N/A'
+    }));
+
+    res.status(200).json(formattedLogs);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch logs', error: err.message });
+  }
+};

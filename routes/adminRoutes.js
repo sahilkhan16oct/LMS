@@ -15,4 +15,10 @@ router.get('/protected', verifyToken, (req, res) => {
     res.json({ message: 'Access granted to protected route', admin: req.admin });
 });
 
+
+//log route for admin
+router.get('/logs/recent',
+     verifyToken,
+     adminController.getRecentSessionLogs);
+
 module.exports = router;
