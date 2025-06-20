@@ -22,11 +22,12 @@ exports.sendQueryToAdmin = async (req, res) => {
     });
 
     const mailOptions = {
-      from: candidate.email,
-      to: 'suhailgujjar52@gmail.com',
-      subject: `Query from ${candidate.name}`,
-      html: `<p><strong>Candidate:</strong> ${candidate.name} (${candidate.email})</p>
-             <p><strong>Message:</strong><br>${message}</p>`,
+      from: '"SkillNest LMS" <suhailgujjar52@gmail.com>',  // shown as sender
+  to: 'suhailgujjar52@gmail.com',
+  replyTo: candidate.email,  // 🧠 this is key
+  subject: `Query from ${candidate.name}`,
+  html: `<p><strong>Candidate:</strong> ${candidate.name} (${candidate.email})</p>
+         <p><strong>Message:</strong><br>${message}</p>`,
       attachments: file
         ? [{
             filename: file.originalname,

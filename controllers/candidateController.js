@@ -7,6 +7,7 @@ const mongoose = require("mongoose"); // add on top
 const jwt = require("jsonwebtoken");
 
 const Training = require("../models/Training");
+const SessionLog = require('../models/SessionLog');
 
 
 
@@ -70,6 +71,36 @@ exports.uploadCandidatesExcel = async (req, res) => {
     const duplicateInSameBatch = [];
     const newCandidates = [];
 
+    // ✅ Check if any training already assigned to this batch
+const batch = await Batch.findById(batchId).lean();
+const assignedTrainingId = await Candidate.findOne({
+  "assignedTrainings.batchId": batchId
+}).select("assignedTrainings").lean().then(doc => {
+  if (!doc) return null;
+  const assigned = doc.assignedTrainings.find(t => t.batchId.toString() === batchId);
+  return assigned ? assigned.trainingId : null;
+});
+
+let assignedTraining = null;
+let personalizedChapters = [];
+
+if (assignedTrainingId) {
+  assignedTraining = await Training.findById(assignedTrainingId).lean();
+  personalizedChapters = assignedTraining?.chapters.map(ch => ({
+    chapterId: ch._id.toString(),
+    name: ch.name,
+    description: ch.description,
+    duration: ch.duration,
+    pdf: ch.pdf,
+    linkedTestId: ch.linkedTestId || null,
+    certificate: ch.certificate || null,
+    unlocksChapters: ch.unlocksChapters || [],
+    dependentChapters: ch.dependentChapters || [],
+    indexes: ch.indexes || []
+  })) || [];
+}
+
+
     for (let cid of incomingIds) {
       const row = rowMap[cid];
       const clean = {};
@@ -85,21 +116,7 @@ exports.uploadCandidatesExcel = async (req, res) => {
       if (!existing) {
         // 🆕 Create new candidate
       // ✅ Fetch assigned training and chapters (to embed into new candidate)
-const assignedTraining = await Training.findOne().lean(); // or fetch based on logic if needed
-const trainingChapters = assignedTraining?.chapters || [];
 
-const personalizedChapters = trainingChapters.map(ch => ({
-  chapterId: ch._id.toString(),
-  name: ch.name,
-  description: ch.description,
-  duration: ch.duration,
-  pdf: ch.pdf,
-  linkedTestId: ch.linkedTestId || null,
-  certificate: ch.certificate || null,
-  unlocksChapters: ch.unlocksChapters || [],
-  dependentChapters: ch.dependentChapters || [],
-  indexes: ch.indexes || []
-}));
 
 const newCandidate = new Candidate({
   ...clean,
@@ -110,16 +127,18 @@ const newCandidate = new Candidate({
       fileId: fileObjectId,
       rawData: { ...row, sourceFile: file.originalname },
     },
+
   ],
-  assignedTrainings: [
-    {
-      trainingId: assignedTraining._id,
-      batchId: batchId,
-      assignedAt: new Date(),
-      status: "not_started",
-      chapters: personalizedChapters
-    }
-  ]
+   ...(assignedTraining && {
+    assignedTrainings: [
+      {
+        trainingId: assignedTraining._id,
+        batchId: batchId,
+        assignedAt: new Date(),
+        status: "not_started",
+      }
+    ]
+  })
 });
 
         newCandidates.push(newCandidate);
@@ -222,7 +241,7 @@ exports.searchCandidatesInBatch = async (req, res) => {
     const regex = new RegExp(q.trim(), 'i'); // case-insensitive
 
     const candidates = await Candidate.find({
-      batch: batchId,
+       "batches.batch": batchId,
       $or: [
         { name: regex },
         { candidateId: regex },
@@ -287,45 +306,7 @@ exports.deleteCandidate = async (req, res) => {
 };
 
 
-//candidate login controller
-// exports.loginCandidate = async (req, res) => {
-//   const { candidateId, password } = req.body;
 
-//   if (!candidateId || !password) {
-//     return res.status(400).json({ message: "Candidate ID and password are required." });
-//   }
-
-//   try {
-//     const candidate = await Candidate.findOne({ candidateId });
-//     if (!candidate) {
-//       return res.status(404).json({ message: "Candidate not found." });
-//     }
-
-//     if (candidate.password !== password) {
-//       return res.status(401).json({ message: "Invalid password." });
-//     }
-
-//     const token = jwt.sign(
-//       {
-//         id: candidate._id,
-//         candidateId: candidate.candidateId,
-//         role: "candidate"
-//       },
-//       process.env.JWT_SECRET,
-//       { expiresIn: "2d" }
-//     );
-
-//     res.status(200).json({
-//   token,
-//   role: "candidate",
-//   candidateId: candidate.candidateId, // ✅ Add this line
-// });
-
-//   } catch (err) {
-//     console.error("Candidate login error:", err);
-//     res.status(500).json({ message: "Server error." });
-//   }
-// };
 
 //candidate login controller(given by sahil)
 exports.loginCandidate = async (req, res) => {
@@ -336,7 +317,8 @@ exports.loginCandidate = async (req, res) => {
   }
 
   try {
-    const candidate = await Candidate.findOne({ candidateId });
+    const candidate = await Candidate.findOne({ candidateId: candidateId.trim() });
+
     if (!candidate) {
       return res.status(404).json({ message: "Candidate not found." });
     }
@@ -356,12 +338,50 @@ exports.loginCandidate = async (req, res) => {
       { expiresIn: "2d" }
     );
 
+       //creating session log
+    await SessionLog.create({
+      sessionId: `${candidateId}_${Date.now()}`,
+      candidate: candidate._id,
+      email: candidate.email,
+      name: candidate.name,
+      phone: candidate.phone,
+      loginTime: new Date()
+    });
+
     res.status(200).json({ token, role: "candidate" });
   } catch (err) {
     console.error("Candidate login error:", err);
     res.status(500).json({ message: "Server error." });
   }
 };
+
+
+//candidate logout controller for session log
+exports.logoutCandidate = async (req, res) => {
+  try {
+    const candidateId = req.user.id;
+
+    const lastSession = await SessionLog.findOne({ candidate: candidateId })
+      .sort({ loginTime: -1 });
+
+    if (!lastSession) {
+      return res.status(404).json({ message: "No active session found." });
+    }
+
+    // ✅ Correct variable name
+    await SessionLog.updateMany(
+      { sessionId: lastSession.sessionId, logoutTime: null },
+      { $set: { logoutTime: new Date() } }
+    );
+
+    res.status(200).json({ message: "Logout time saved for all active session logs." });
+  } catch (err) {
+    console.error("Logout error:", err);
+    res.status(500).json({ message: "Server error during logout." });
+  }
+};
+
+
 
 
 
@@ -393,37 +413,51 @@ exports.getCandidateProfile = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const candidate = await Candidate.findById(candidateId)
-      .populate("assignedTrainings.trainingId")
+  const candidate = await Candidate.findById(candidateId)
       .select("-password -__v")
+      .populate({
+        path: "assignedTrainings.trainingId",
+        select:
+          "trainingTitle description videoPath duration category startTime endTime chapters",
+      })
       .lean();
 
-    if (!candidate) {
-      return res.status(404).json({ message: "Candidate not found" });
-    }
+if (!candidate) {
+  return res.status(404).json({ message: "Candidate not found" });
+}
 
-    console.log("Decoded user from token:", req.user); // 👈 Add this
+candidate.assignedTrainings = candidate.assignedTrainings.map((training) => {
+  const trainingDoc = training.trainingId;
 
+  const updatedChapters = training.chapters?.map((assignedChapter) => {
+    const liveChapter = trainingDoc?.chapters?.find(
+      (ch) => ch._id?.toString() === assignedChapter.chapterId?.toString()
+    );
 
-    // ✅ Inject chapterId properly inside assignedTrainings[].chapters[]
-    candidate.assignedTrainings = candidate.assignedTrainings.map((training) => {
-     const updatedChapters = training.chapters.map((ch) => ({
-  ...ch,
-  chapterId: ch.chapterId?.toString() || null,
-  certificate: ch.certificate || null  // ✅ Ensure certificate comes through
-}));
+    return {
+      chapterId: assignedChapter.chapterId?.toString(),
+      name: liveChapter?.name || "",
+      description: liveChapter?.description || "",
+      duration: liveChapter?.duration || 0,
+      pdf: liveChapter?.pdf || null,
+      linkedTestId: assignedChapter.linkedTestId || null,
+      certificate: assignedChapter.certificate || null,
+      unlocksChapters: assignedChapter.unlocksChapters || [],
+      dependentChapters: assignedChapter.dependentChapters || [],
+      indexes: liveChapter?.indexes || [],
+    };
+  }) || [];
 
+  return {
+    ...training,
+    chapters: updatedChapters,
+    trainingId: {
+      ...trainingDoc,
+      chapters: updatedChapters, // for frontend compatibility
+    },
+  };
+});
 
-      // ✅ Inject updated chapters inside trainingId.chapters for frontend use
-      return {
-        ...training,
-        chapters: updatedChapters,
-        trainingId: {
-          ...training.trainingId,
-          chapters: updatedChapters, // ✅ overwrite chapters here
-        },
-      };
-    });
 
     res.status(200).json(candidate);
   } catch (err) {
@@ -459,6 +493,58 @@ exports.getChapterNameById = async (req, res) => {
   }
 };
 
+
+//training fetch for log(candidate kis training m enter krta h)
+exports.addTrainingLog = async (req, res) => {
+  try {
+    const candidateId = req.user.id;
+    const { trainingId } = req.body;
+
+    if (!trainingId) {
+      return res.status(400).json({ message: "Training ID is required." });
+    }
+
+    const training = await Training.findById(trainingId);
+    if (!training) {
+      return res.status(404).json({ message: "Training not found." });
+    }
+
+    // Get latest session
+    const lastSession = await SessionLog.findOne({ candidate: candidateId }).sort({ loginTime: -1 });
+    if (!lastSession) {
+      return res.status(404).json({ message: "No active session found for candidate." });
+    }
+
+    // Check if trainingId already exists in visitedTrainings
+    const alreadyVisited = lastSession.visitedTrainings?.some(
+      (t) => t.trainingId.toString() === trainingId
+    );
+
+    if (alreadyVisited) {
+      return res.status(200).json({ message: "Training already visited in this session." });
+    }
+
+    // Push training into visitedTrainings array
+    await SessionLog.updateOne(
+      { _id: lastSession._id },
+      {
+        $push: {
+          visitedTrainings: {
+            trainingId: training._id,
+            trainingTitle: training.trainingTitle,
+            visitedAt: new Date(),
+          },
+        },
+      }
+    );
+
+    res.status(201).json({ message: "Training session logged successfully." });
+
+  } catch (err) {
+    console.error("Add training log error:", err);
+    res.status(500).json({ message: "Server error while logging training session." });
+  }
+};
 
 
 

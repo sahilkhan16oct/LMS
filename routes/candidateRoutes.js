@@ -15,10 +15,15 @@ router.get("/assigned-trainings", verifyToken, candidateController.getAssignedTr
 // get candidate profile
 router.get("/profile", verifyToken, candidateController.getCandidateProfile);
 
-
-
 //chapter name fetching route
 router.get("/chapter-name/:chapterId", verifyToken, candidateController.getChapterNameById);
+
+
+//candidate logout time fetch route
+router.patch("/logout", verifyToken, candidateController.logoutCandidate);
+
+//training fetch for log session 
+router.post("/session/training", verifyToken, candidateController.addTrainingLog);
 
 
 module.exports = router;

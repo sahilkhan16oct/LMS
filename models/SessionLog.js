@@ -4,7 +4,7 @@ const sessionLogSchema = new mongoose.Schema({
   sessionId: {
     type: String,
     required: true,
-    unique: true,
+    
   },
   candidate: {
     type: mongoose.Schema.Types.ObjectId,
@@ -23,11 +23,19 @@ const sessionLogSchema = new mongoose.Schema({
     type: Date,
   },
 
-  trainingId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Training',
-  },
-  trainingTitle: String,
+  visitedTrainings: [  // ✅ new structure
+    {
+      trainingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Training',
+      },
+      trainingTitle: String,
+      visitedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
 
   chapterId: {
     type: mongoose.Schema.Types.ObjectId,

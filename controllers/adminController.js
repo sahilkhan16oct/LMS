@@ -2,7 +2,7 @@ const Admin = require('../models/Admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const SessionLog = require('../models/SessionLog'); 
-
+const Candidate = require("../models/Candidate");
 
 // Admin Register
 exports.registerAdmin = async (req, res) => {
@@ -65,26 +65,80 @@ exports.loginAdmin = async (req, res) => {
   };
 
 
-  //log controller for admin 
-  exports.getRecentSessionLogs = async (req, res) => {
+  //log tab controller for admin 
+exports.getRecentSessionLogs = async (req, res) => {
   try {
     const logs = await SessionLog.find({})
       .sort({ loginTime: -1 })
       .limit(50)
-      .select('sessionId email phone loginTime logoutTime candidate')
-      .populate('candidate', 'candidateId'); // to get canId
+      .select("sessionId email phone loginTime logoutTime candidate visitedTrainings")
+      .populate("candidate", "candidateId testResults assignedTrainings");
 
-    const formattedLogs = logs.map(log => ({
-      sessionId: log.sessionId,
-      email: log.email,
-      phone: log.phone,
-      loginTime: log.loginTime,
-      logoutTime: log.logoutTime,
-      canId: log.candidate?.candidateId || 'N/A'
-    }));
+    const formattedLogs = [];
+
+    for (const log of logs) {
+      const candidate = log.candidate;
+      const testResults = candidate?.testResults || [];
+      const assignedTrainings = candidate?.assignedTrainings || [];
+
+      if (!log.visitedTrainings || log.visitedTrainings.length === 0) {
+        formattedLogs.push({
+          sessionId: log.sessionId,
+          email: log.email,
+          phone: log.phone,
+          loginTime: log.loginTime,
+          logoutTime: log.logoutTime,
+          canId: candidate?.candidateId || "N/A",
+          trainingTitle: "N/A",
+          activitySummary: "N/A",
+        });
+      } else {
+        for (const visited of log.visitedTrainings) {
+          const trainingIdStr = visited.trainingId?.toString();
+          const trainingObj = assignedTrainings.find(t => t.trainingId.toString() === trainingIdStr);
+
+          const passedChapterNames = [];
+
+          if (trainingObj) {
+            for (const chapter of trainingObj.chapters) {
+              const chapterTestId = chapter.linkedTestId?.toString();
+              const hasPassed = testResults.some(
+                (result) => result.testId?.toString() === chapterTestId && result.status === "pass"
+              );
+              if (hasPassed) {
+                const passedResult = testResults.find(
+  (result) =>
+    result.testId?.toString() === chapterTestId &&
+    result.status === "pass"
+);
+if (passedResult) {
+  const percent = passedResult.scorePercentage?.toFixed(1) || "N/A";
+  passedChapterNames.push(`${chapter.name} (${percent}%)`);
+}
+
+              }
+            }
+          }
+
+          formattedLogs.push({
+            sessionId: log.sessionId,
+            email: log.email,
+            phone: log.phone,
+            loginTime: log.loginTime,
+            logoutTime: log.logoutTime,
+            canId: candidate?.candidateId || "N/A",
+            trainingTitle: visited.trainingTitle || "N/A",
+            activitySummary: passedChapterNames.length > 0
+              ? `Passed: ${passedChapterNames.join(", ")}`
+              : "No activity"
+          });
+        }
+      }
+    }
 
     res.status(200).json(formattedLogs);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch logs', error: err.message });
+    console.error("Log fetch error:", err);
+    res.status(500).json({ message: "Failed to fetch logs", error: err.message });
   }
 };
