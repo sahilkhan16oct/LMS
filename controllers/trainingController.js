@@ -840,7 +840,7 @@ exports.uploadChapterCertificate = async (req, res) => {
 };
 
 
-//remove a chapter from any chapter 
+//remove a certificate from any chapter 
 exports.removeChapterCertificate = async (req, res) => {
   try {
     const { trainingId, chapterId } = req.params;

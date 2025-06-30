@@ -2,6 +2,7 @@ const xlsx = require("xlsx");
 const fs = require("fs");
 const path = require("path");
 const Candidate = require("../models/Candidate");
+// const fetch = require("node-fetch");
 const Batch = require("../models/Batch");
 const mongoose = require("mongoose"); // add on top
 const jwt = require("jsonwebtoken");
@@ -342,9 +343,6 @@ exports.loginCandidate = async (req, res) => {
     await SessionLog.create({
       sessionId: `${candidateId}_${Date.now()}`,
       candidate: candidate._id,
-      email: candidate.email,
-      name: candidate.name,
-      phone: candidate.phone,
       loginTime: new Date()
     });
 
@@ -354,35 +352,6 @@ exports.loginCandidate = async (req, res) => {
     res.status(500).json({ message: "Server error." });
   }
 };
-
-
-//candidate logout controller for session log
-exports.logoutCandidate = async (req, res) => {
-  try {
-    const candidateId = req.user.id;
-
-    const lastSession = await SessionLog.findOne({ candidate: candidateId })
-      .sort({ loginTime: -1 });
-
-    if (!lastSession) {
-      return res.status(404).json({ message: "No active session found." });
-    }
-
-    // ✅ Correct variable name
-    await SessionLog.updateMany(
-      { sessionId: lastSession.sessionId, logoutTime: null },
-      { $set: { logoutTime: new Date() } }
-    );
-
-    res.status(200).json({ message: "Logout time saved for all active session logs." });
-  } catch (err) {
-    console.error("Logout error:", err);
-    res.status(500).json({ message: "Server error during logout." });
-  }
-};
-
-
-
 
 
 // GET /api/candidate/assigned-training
@@ -441,7 +410,7 @@ candidate.assignedTrainings = candidate.assignedTrainings.map((training) => {
       duration: liveChapter?.duration || 0,
       pdf: liveChapter?.pdf || null,
       linkedTestId: assignedChapter.linkedTestId || null,
-      certificate: assignedChapter.certificate || null,
+      certificate: liveChapter?.certificate || assignedChapter.certificate || null,
       unlocksChapters: assignedChapter.unlocksChapters || [],
       dependentChapters: assignedChapter.dependentChapters || [],
       indexes: liveChapter?.indexes || [],
@@ -547,4 +516,169 @@ exports.addTrainingLog = async (req, res) => {
 };
 
 
+//candidate logout controller for session log
+exports.logoutCandidate = async (req, res) => {
+  try {
+    const candidateId = req.user.id;
+
+    const lastSession = await SessionLog.findOne({ candidate: candidateId })
+      .sort({ loginTime: -1 });
+
+    if (!lastSession) {
+      return res.status(404).json({ message: "No active session found." });
+    }
+
+    // ✅ Correct variable name
+    await SessionLog.updateMany(
+      { sessionId: lastSession.sessionId, logoutTime: null },
+      { $set: { logoutTime: new Date() } }
+    );
+
+    res.status(200).json({ message: "Logout time saved for all active session logs." });
+  } catch (err) {
+    console.error("Logout error:", err);
+    res.status(500).json({ message: "Server error during logout." });
+  }
+};
+
+//route for app(not for web)
+exports.getAssignedTrainingById = async (req, res) => {
+  try {
+    const candidateId = req.user?.id;
+    if (!candidateId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const trainingId = req.params.trainingId;
+
+    const candidate = await Candidate.findById(candidateId)
+      .populate('assignedTrainings.trainingId')
+      .lean();
+
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found" });
+    }
+
+    const assignedTraining = candidate.assignedTrainings.find(
+      (t) => t.trainingId?._id?.toString() === trainingId
+    );
+
+    if (!assignedTraining) {
+      return res.status(404).json({ message: 'Training not found in assigned trainings.' });
+    }
+
+    const trainingDoc = assignedTraining.trainingId;
+
+    const updatedChapters = assignedTraining.chapters?.map((assignedChapter) => {
+      const liveChapter = trainingDoc?.chapters?.find(
+        (ch) => ch._id?.toString() === assignedChapter.chapterId?.toString()
+      );
+
+      return {
+        chapterId: assignedChapter.chapterId?.toString(),
+        name: liveChapter?.name || "",
+        description: liveChapter?.description || "",
+        duration: liveChapter?.duration || 0,
+        pdf: liveChapter?.pdf || null,
+        linkedTestId: assignedChapter.linkedTestId || null,
+        certificate: assignedChapter.certificate || null,
+        unlocksChapters: assignedChapter.unlocksChapters || [],
+        dependentChapters: assignedChapter.dependentChapters || [],
+        indexes: liveChapter?.indexes || [],
+      };
+    }) || [];
+
+    const finalAssignedTraining = {
+      ...assignedTraining,
+      chapters: updatedChapters,
+      trainingId: {
+        ...trainingDoc,
+        chapters: updatedChapters, // for frontend compatibility
+      }
+    };
+
+    res.status(200).json(finalAssignedTraining);
+  } catch (error) {
+    console.error('Error fetching assigned training:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+//chapter details for chapter card selection
+exports.getCandidateChapterDetails = async (req, res) => {
+  try {
+    const candidateId = req.user.id;
+    const { trainingId, chapterId } = req.params;
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const assigned = candidate.assignedTrainings.find(
+      t => t.trainingId.toString() === trainingId
+    );
+    if (!assigned) return res.status(403).json({ message: 'Training not assigned' });
+
+    const training = await Training.findById(trainingId);
+    if (!training) return res.status(404).json({ message: 'Training not found' });
+
+    const chapter = training.chapters.find(ch =>
+      ch._id.toString() === chapterId
+    );
+    if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
+
+    // Final response with video path
+    return res.json({
+      ...chapter.toObject(),
+      videoPath: training.videoPath || null  // include if exists
+    });
+  } catch (err) {
+    console.error('Error fetching chapter details:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+//ask ai limit controller for candidate
+
+
+
+exports.askAiWithLimit = async (req, res) => {
+  try {
+    const candidateId = req.user?.id;
+    const { question } = req.body;
+
+    if (!candidateId || !question) {
+      return res.status(400).json({ message: "Missing candidate or question" });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found" });
+    }
+
+    if (candidate.aiCredits <= 0) {
+      return res.status(403).json({ message: "Your AI limit exhausted." });
+    }
+
+    const aiRes = await fetch("https://azeem-ai.onrender.com/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+
+    const data = await aiRes.json();
+
+    candidate.aiCredits -= 1;
+    await candidate.save();
+
+    res.status(200).json({
+      answer: data.answer || "No answer received.",
+      remainingCredits: candidate.aiCredits
+    });
+
+  } catch (err) {
+    console.error("Ask AI Limit Error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
 

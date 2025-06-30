@@ -26,4 +26,20 @@ router.patch("/logout", verifyToken, candidateController.logoutCandidate);
 router.post("/session/training", verifyToken, candidateController.addTrainingLog);
 
 
+//ask ai limit route foe candidate
+// routes/candidateRoutes.js
+router.post("/ask-ai", verifyToken, candidateController.askAiWithLimit);
+
+
+//route for app(not for web)
+router.get('/assigned-training/:trainingId', verifyToken, candidateController.getAssignedTrainingById);
+
+
+//chapter details for chapter card in app
+router.get(
+  '/training/:trainingId/chapter/:chapterId',
+  verifyToken,
+  candidateController.getCandidateChapterDetails
+);
+
 module.exports = router;

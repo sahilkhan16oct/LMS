@@ -71,6 +71,10 @@ testResults: [
  queryCount: {
     type: Number,
     default: 0
+  },
+    aiCredits: {
+    type: Number,
+    default: 5
   }
 
 

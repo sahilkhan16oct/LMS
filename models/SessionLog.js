@@ -11,9 +11,7 @@ const sessionLogSchema = new mongoose.Schema({
     ref: 'Candidate',
     required: true,
   },
-  email: String,
-  name: String,
-  phone: String,
+  
 
   loginTime: {
     type: Date,

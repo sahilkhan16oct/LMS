@@ -17,7 +17,7 @@ exports.sendQueryToAdmin = async (req, res) => {
       service: 'gmail',
       auth: {
         user: 'suhailgujjar52@gmail.com',     // ✅ Admin mail
-        pass: 'rgwb ekax xtaq kulj'             // 🔐 Put real app password here
+        pass: 'ttdi kbhf tzdt hium'             // 🔐 Put real app password here
       }
     });
 
