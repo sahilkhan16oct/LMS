@@ -26,7 +26,9 @@ exports.sendQueryToAdmin = async (req, res) => {
   to: 'suhailgujjar52@gmail.com',
   replyTo: candidate.email,  // 🧠 this is key
   subject: `Query from ${candidate.name}`,
-  html: `<p><strong>Candidate:</strong> ${candidate.name} (${candidate.email})</p>
+  html: `<p><strong>Candidate name:</strong> ${candidate.name}</p>
+  <p><strong>Candidate email:</strong> (${candidate.email})</p>
+         <p><strong>Candidate ID:</strong> ${candidate.candidateId}</p>
          <p><strong>Message:</strong><br>${message}</p>`,
       attachments: file
         ? [{

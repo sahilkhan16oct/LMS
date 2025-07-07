@@ -10,6 +10,8 @@ const trainingSchema = new mongoose.Schema({
   endTime: { type: Date },
   videoPath: { type: String },       
   videoFilename: { type: String },
+  youtubeLink: { type: String, default: "" },
+
   chapters: [
     {
       name: String,

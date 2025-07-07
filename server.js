@@ -63,6 +63,10 @@ const candidateQueryRoutes = require('./routes/candidateQueryRoutes');
 app.use('/api/candidate', candidateQueryRoutes);
 
 
+//Notice fetch route
+const generalRoutes = require("./routes/generalRoutes");
+app.use("/api", generalRoutes);
+
 const PORT = 5000;
 
 // Connect to MongoDB using connectDB function

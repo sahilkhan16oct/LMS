@@ -387,7 +387,7 @@ exports.getCandidateProfile = async (req, res) => {
       .populate({
         path: "assignedTrainings.trainingId",
         select:
-          "trainingTitle description videoPath duration category startTime endTime chapters",
+          "trainingTitle description videoPath youtubeLink duration category startTime endTime chapters",
       })
       .lean();
 
@@ -463,7 +463,7 @@ exports.getChapterNameById = async (req, res) => {
 };
 
 
-//training fetch for log(candidate kis training m enter krta h)
+//training fetch for log(candidate kis training m enter krta h session logs)
 exports.addTrainingLog = async (req, res) => {
   try {
     const candidateId = req.user.id;

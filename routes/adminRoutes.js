@@ -1,7 +1,7 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
 const verifyToken = require('../middleware/auth');  // ✅ yeh line add kari
-
+const NoticeController = require("../controllers/NoticeController");
 const router = express.Router();
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' }); // temp directory
@@ -38,6 +38,13 @@ router.post(
   upload.single('file'),
   adminController.uploadSessionAndTrainingLog
 );
+
+
+// 📢 Notice routes
+router.post("/notice/add", verifyToken, NoticeController.addNotice);
+router.put("/notice/update", verifyToken, NoticeController.updateNotice);
+router.delete("/notice/delete", verifyToken, NoticeController.deleteNotice);
+
 
 
 module.exports = router;

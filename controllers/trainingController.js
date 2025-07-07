@@ -25,6 +25,7 @@ exports.addTraining = async (req, res) => {
       duration,
       startTime,
       endTime,
+      youtubeLink,
     } = req.body;
 
     let videoUrl = "";
@@ -43,6 +44,7 @@ exports.addTraining = async (req, res) => {
       duration,
       startTime,
       endTime,
+      youtubeLink,
       videoPath: videoUrl, // save S3 URL
       videoFilename,
     });
@@ -163,6 +165,7 @@ exports.updateTraining = async (req, res) => {
         ...req.body,
         videoPath,
         videoFilename,
+        youtubeLink: req.body.youtubeLink || existingTraining.youtubeLink,
       },
       { new: true }
     );
